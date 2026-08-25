@@ -4,7 +4,7 @@ import { basename, join, resolve } from 'node:path'
 import { DshCompiler } from './adapters/dsh-compiler.js'
 import { A2aClient } from './adapters/a2a-client.js'
 import { probeModel } from './adapters/model-probe.js'
-import { errorMessage } from './core/errors.js'
+import { AgentPackError, errorMessage } from './core/errors.js'
 import { isJsonObject } from './core/json.js'
 import { loadAgentPack, packDigest, packIdentity } from './core/pack-ir.js'
 import { loadCompilationTarget } from './core/target.js'
@@ -13,7 +13,11 @@ import { VERSION_LOCK } from './version-lock.js'
 try {
   await main(process.argv.slice(2))
 } catch (error) {
-  process.stderr.write(`${JSON.stringify({ event: 'agentpack.cli.failed', error: errorMessage(error) })}\n`)
+  process.stderr.write(`${JSON.stringify({
+    event: 'agentpack.cli.failed',
+    error: errorMessage(error),
+    ...(error instanceof AgentPackError ? { code: error.code, details: error.details } : {}),
+  })}\n`)
   process.exitCode = 1
 }
 
