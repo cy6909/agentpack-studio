@@ -1,10 +1,11 @@
 import type { JsonObject } from './json.js'
 
 export interface RuntimeStreamEvent {
-  type: 'runtime.started' | 'runtime.message' | 'runtime.completed'
+  type: 'runtime.started' | 'runtime.message' | 'runtime.recovering' | 'runtime.completed'
   sessionId: string
   text?: string
   stopReason?: string
+  attempt?: number
 }
 
 export interface RuntimeInvocation {

@@ -143,24 +143,43 @@ export class DshAcpRuntime implements AgentRuntime {
     const cancel = () => { void connection.cancel({ sessionId }).catch(() => undefined) }
     signal.addEventListener('abort', cancel, { once: true })
     try {
-      const prompt = JSON.stringify({
+      const taskPrompt = JSON.stringify({
         task: {
           traceId: invocation.traceId,
           input: invocation.input,
           childResults: invocation.childResults,
         },
       })
-      const result = await connection.prompt({
-        sessionId,
-        prompt: [{ type: 'text', text: prompt }],
-      })
-      if (signal.aborted || result.stopReason === 'cancelled') {
-        throw new AgentPackError('CANCELLED', 'DSH ACP prompt was cancelled', { sessionId })
+      const maximumAttempts = 1 + this.#options.artifact.runtime.outputRepairAttempts
+      let prompt = taskPrompt
+      for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+        observer.text.length = 0
+        const result = await connection.prompt({
+          sessionId,
+          prompt: [{ type: 'text', text: prompt }],
+        })
+        if (signal.aborted || result.stopReason === 'cancelled') {
+          throw new AgentPackError('CANCELLED', 'DSH ACP prompt was cancelled', { sessionId })
+        }
+        const text = observer.text.join('')
+        try {
+          const output = extractUniqueJsonObject(text, 'DSH model response')
+          await onEvent({ type: 'runtime.completed', sessionId, stopReason: result.stopReason })
+          return output
+        } catch (cause: unknown) {
+          const recoverable = cause instanceof AgentPackError && cause.code === 'OUTPUT_INVALID'
+          if (!recoverable || attempt >= maximumAttempts) throw cause
+          await onEvent({ type: 'runtime.recovering', sessionId, attempt })
+          prompt = JSON.stringify({
+            agentpackRecovery: {
+              reason: 'The previous turn did not produce exactly one valid output object.',
+              instruction: 'Continue the same task. Call every still-advertised required tool, then return exactly one JSON object and no other text.',
+              outputSchema: this.#options.artifact.pack.spec.interface.outputSchema,
+            },
+          })
+        }
       }
-      const text = observer.text.join('')
-      const output = extractUniqueJsonObject(text, 'DSH model response')
-      await onEvent({ type: 'runtime.completed', sessionId, stopReason: result.stopReason })
-      return output
+      throw new AgentPackError('OUTPUT_INVALID', 'DSH output repair attempts were exhausted', { sessionId })
     } catch (cause) {
       if (cause instanceof AgentPackError) throw cause
       throw new AgentPackError('RUNTIME_FAILED', `DSH ACP prompt failed: ${errorMessage(cause)}`, { sessionId }, { cause })

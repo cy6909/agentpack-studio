@@ -18,9 +18,11 @@ describe('DSH Pack tool phase policy', () => {
     expect(denied).toEqual([['read_index'], ['read_details']])
   })
 
-  it('removes every required tool after one failed result so the turn can fail closed', () => {
+  it('allows one correction and then removes every required tool after a repeated failure', () => {
     const { listener, denied } = policyHarness(['read_index', 'read_details'])
 
+    listener.execution('read_index', true)
+    expect(denied).toEqual([])
     listener.execution('read_index', true)
 
     expect(denied).toEqual([['read_index', 'read_details']])

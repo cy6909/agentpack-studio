@@ -22,6 +22,7 @@ export interface DshCompiledArtifact {
     dshCommit: string
     readinessPath: string
     readinessTimeoutMs: number
+    outputRepairAttempts: number
     mcpBindings: Array<{
       id: string
       server: string
@@ -97,6 +98,7 @@ export class DshCompiler implements RuntimeCompiler<DshCompiledArtifact> {
         dshCommit: VERSION_LOCK.dsh.gitCommit,
         readinessPath,
         readinessTimeoutMs: 30_000,
+        outputRepairAttempts: 1,
         mcpBindings,
       },
       composition: {
@@ -205,7 +207,7 @@ function buildCordisConfig(options: {
   plugins.push({
     id: 'agentpack-pack-policy',
     name: pathToFileURL(join(projectRoot, 'dist', 'adapters', 'dsh-pack-policy-plugin.js')).href,
-    config: { requiredTools: requiredToolNames },
+    config: { requiredTools: requiredToolNames, maxAttemptsPerTool: 2 },
   })
   plugins.push({
     id: 'acp-agent',

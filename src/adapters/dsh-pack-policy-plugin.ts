@@ -24,6 +24,7 @@ interface PolicyContext {
 
 interface PolicyConfig {
   requiredTools: string[]
+  maxAttemptsPerTool?: number
 }
 
 /** Cordis plugin name used by generated DSH compositions. */
@@ -38,8 +39,9 @@ export const inject = ['tools']
  *
  * 1. expose the Pack's required tools until each has one successful result;
  * 2. hide each successful tool so the model can only select a missing one;
- * 3. on any failed tool, hide the whole required set so the turn converges and
- *    the Pack executor rejects it from authoritative MCP audit evidence;
+ * 3. allow one bounded correction after a failed call (including argument
+ *    validation before MCP dispatch), then hide the whole required set so the
+ *    turn converges and the Pack executor can reject missing success evidence;
  * 4. once no tools remain, the next request is the structured-output phase.
  *
  * Tool-order validation remains valid because DSH restrictions hide schemas
@@ -49,14 +51,24 @@ export const inject = ['tools']
  */
 export function apply(ctx: PolicyContext, config: PolicyConfig): void {
   if (config.requiredTools.length === 0) return
+  const maxAttemptsPerTool = config.maxAttemptsPerTool ?? 2
+  if (!Number.isSafeInteger(maxAttemptsPerTool) || maxAttemptsPerTool < 1) {
+    throw new Error('agentpack-pack-policy maxAttemptsPerTool must be a positive integer')
+  }
   const required = new Set(config.requiredTools)
   const successful = new WeakMap<AgentHandle, Set<string>>()
+  const attempts = new WeakMap<AgentHandle, Map<string, number>>()
   const restrictions = new Set<() => void>()
 
   ctx.on('tools/result', (execution, result) => {
     const agent = execution.agent
     if (!agent || !required.has(execution.name)) return
+    const counts = attempts.get(agent) ?? new Map<string, number>()
+    const count = (counts.get(execution.name) ?? 0) + 1
+    counts.set(execution.name, count)
+    attempts.set(agent, counts)
     if (result.isError) {
+      if (count < maxAttemptsPerTool) return
       const dispose = agent.ctx.tools.restrict({ deny: [...required] })
       restrictions.add(dispose)
       return

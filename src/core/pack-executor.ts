@@ -69,11 +69,13 @@ export class PackExecutor {
             sessionId: event.sessionId,
             ...(event.text === undefined ? {} : { bytes: Buffer.byteLength(event.text), contentDigest: `sha256:${sha256(event.text)}` }),
             ...(event.stopReason === undefined ? {} : { stopReason: event.stopReason }),
+            ...(event.attempt === undefined ? {} : { attempt: event.attempt }),
           })
           await options.onProgress({
             phase: event.type,
             sessionId: event.sessionId,
             ...(event.text === undefined ? {} : { committedBytes: Buffer.byteLength(event.text) }),
+            ...(event.attempt === undefined ? {} : { attempt: event.attempt }),
           })
         },
       )
