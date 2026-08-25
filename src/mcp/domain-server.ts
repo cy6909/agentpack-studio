@@ -3,25 +3,22 @@ import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import type { JsonObject } from '../core/json.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { isJsonObject } from '../core/json.js'
 import { errorMessage } from '../core/errors.js'
 
 export type McpTestMode = 'normal' | 'error' | 'malformed' | 'not-found' | 'timeout'
 
-export interface DomainToolExecution<T extends JsonObject> {
+export interface DomainToolExecution<T> {
   server: string
   tool: string
-  args: JsonObject
+  args: unknown
   traceId: string
   signal: AbortSignal
   run: () => Promise<T> | T
 }
 
-export interface McpToolResponse {
-  content: Array<{ type: 'text'; text: string }>
-  structuredContent?: JsonObject
-  isError?: boolean
-}
+export type McpToolResponse = CallToolResult
 
 export function createDomainServer(name: string): McpServer {
   return new McpServer(
@@ -43,7 +40,7 @@ export function allowedTools(known: readonly string[]): ReadonlySet<string> {
   return new Set(configured)
 }
 
-export async function executeDomainTool<T extends JsonObject>(execution: DomainToolExecution<T>): Promise<McpToolResponse> {
+export async function executeDomainTool<T>(execution: DomainToolExecution<T>): Promise<McpToolResponse> {
   const invocationId = randomUUID()
   const startedAt = new Date().toISOString()
   const mode = readMode()
@@ -88,6 +85,7 @@ export async function executeDomainTool<T extends JsonObject>(execution: DomainT
     }
 
     const result = await execution.run()
+    if (!isJsonObject(result)) throw new Error(`${execution.server}.${execution.tool} returned a non-object result`)
     const response: McpToolResponse = {
       content: [{ type: 'text', text: JSON.stringify(result) }],
       structuredContent: result,
@@ -140,7 +138,7 @@ async function abortableDelay(milliseconds: number, signal: AbortSignal): Promis
   })
 }
 
-async function auditCompletion<T extends JsonObject>(
+async function auditCompletion<T>(
   execution: DomainToolExecution<T>,
   invocationId: string,
   startedAt: string,

@@ -1,8 +1,11 @@
-import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js'
-import addFormats from 'ajv-formats'
+import { createRequire } from 'node:module'
+import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js'
 import { AgentPackError } from './errors.js'
 import type { JsonObject } from './json.js'
 
+const require = createRequire(import.meta.url)
+const Ajv2020 = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js').default
+const addFormats = require('ajv-formats') as typeof import('ajv-formats').default
 const ajv = new Ajv2020({
   allErrors: true,
   strict: true,

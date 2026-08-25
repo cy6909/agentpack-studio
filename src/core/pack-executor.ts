@@ -139,7 +139,8 @@ export class PackExecutor {
       const contract = this.#artifact.composition.childContracts[child.id]
       if (!contract) throw new AgentPackError('CHILD_AGENT_FAILED', `Missing compiled child contract: ${child.id}`)
       const input = mapChildInput(options.input, child.inputMapping)
-      new JsonSchemaValidator(contract.inputSchema, contract.outputSchema).validateInput(input)
+      const childSchema = new JsonSchemaValidator(contract.inputSchema, contract.outputSchema)
+      childSchema.validateInput(input)
       const endpoint = this.#artifact.composition.endpoints[child.id]
       if (!endpoint) throw new AgentPackError('CHILD_AGENT_FAILED', `Missing child endpoint: ${child.id}`)
       await this.#trace.write({
@@ -162,7 +163,7 @@ export class PackExecutor {
           if (!childSignal.aborted) await options.onProgress({ phase: 'child-event', childId: child.id, kind: String(event.kind ?? 'unknown') })
         },
       })
-      new JsonSchemaValidator(contract.inputSchema, contract.outputSchema).validateOutput(result.output)
+      childSchema.validateOutput(result.output)
       const childResult: ChildInvocationResult = {
         childId: child.id,
         pack: child.pack,
