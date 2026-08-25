@@ -59,6 +59,20 @@ agentstack_python() {
   printf '%s/python\n' "$(dirname "$executable")"
 }
 
+register_agentstack_provider() {
+  local name="$1"
+  local source="$2"
+  local evidence_path="$3"
+  if run_agentstack add "$source" --yes 2>&1 | tee "$evidence_path"; then
+    return
+  fi
+  AGENTSTACK__HOME=/home/cy/.agentstack \
+  AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+  AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+    "$AGENTSTACK_PYTHON" scripts/agentstack-provider.py --name "$name" --source "$source" \
+    2>&1 | tee -a "$evidence_path"
+}
+
 assert_port_free() {
   local port="$1"
   if ss -H -ltn | awk '{print $4}' | grep -Eq ":${port}$"; then
@@ -165,8 +179,10 @@ start_pack parenting packs/parenting-safety/pack.json targets/qwen-dsh.poc.json 
   QWEN_API_KEY="$QWEN_API_KEY" \
   AGENTPACK_PARENTING_MCP_AUDIT_PATH="${EVIDENCE_ROOT}/agentstack/traces/parenting-mcp.jsonl"
 
-run_agentstack add http://10.89.2.12:8101 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-wardrobe.log"
-run_agentstack add http://10.89.2.12:8102 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-parenting.log"
+register_agentstack_provider 'StyleMuse Wardrobe Advisor' http://10.89.2.12:8101 \
+  "${EVIDENCE_ROOT}/agentstack-add-wardrobe.log"
+register_agentstack_provider 'Parenting Safety Advisor' http://10.89.2.12:8102 \
+  "${EVIDENCE_ROOT}/agentstack-add-parenting.log"
 
 AGENTSTACK__HOME=/home/cy/.agentstack \
 AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
@@ -191,7 +207,8 @@ start_pack family packs/family-trip-planner/pack.json targets/qwen-dsh-agentstac
   AGENTSTACK_TOKEN="$AGENTSTACK_TOKEN" \
   AGENTPACK_TRAVEL_MCP_AUDIT_PATH="${EVIDENCE_ROOT}/agentstack/traces/travel-mcp.jsonl"
 
-run_agentstack add http://10.89.2.12:8103 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-family.log"
+register_agentstack_provider 'Family Trip Planner' http://10.89.2.12:8103 \
+  "${EVIDENCE_ROOT}/agentstack-add-family.log"
 run_agentstack list 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-list.log"
 
 AGENTSTACK__HOME=/home/cy/.agentstack \
