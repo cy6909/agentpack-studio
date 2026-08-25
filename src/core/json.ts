@@ -46,6 +46,72 @@ export function parseJsonObject(text: string, label: string): JsonObject {
   return parsed
 }
 
+/**
+ * Normalize a model response that contains exactly one top-level JSON object.
+ * Some OpenAI-compatible model servers occasionally preserve analysis prose
+ * or Markdown fences even when the prompt asks for bare JSON. The adapter may
+ * remove that presentation noise, but it must reject zero or multiple valid
+ * objects so it never guesses which payload is authoritative.
+ */
+export function extractUniqueJsonObject(text: string, label: string): JsonObject {
+  try {
+    return parseJsonObject(text, label)
+  } catch (cause) {
+    if (!(cause instanceof AgentPackError) || cause.code !== 'OUTPUT_INVALID') throw cause
+  }
+
+  const candidates: JsonObject[] = []
+  for (const slice of topLevelObjectSlices(text)) {
+    try {
+      const parsed: unknown = JSON.parse(slice)
+      if (isJsonObject(parsed)) candidates.push(parsed)
+    } catch {
+      // An object-looking prose fragment is not an authoritative candidate.
+    }
+  }
+  if (candidates.length === 1) return candidates[0]!
+  throw new AgentPackError(
+    'OUTPUT_INVALID',
+    candidates.length === 0
+      ? `${label} does not contain a valid JSON object`
+      : `${label} contains multiple JSON objects`,
+    { text: text.trim(), candidateCount: candidates.length },
+  )
+}
+
+function topLevelObjectSlices(text: string): string[] {
+  const slices: string[] = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]!
+    if (inString) {
+      if (escaped) escaped = false
+      else if (character === '\\') escaped = true
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '"' && depth > 0) {
+      inString = true
+      continue
+    }
+    if (character === '{') {
+      if (depth === 0) start = index
+      depth += 1
+      continue
+    }
+    if (character !== '}' || depth === 0) continue
+    depth -= 1
+    if (depth === 0 && start >= 0) {
+      slices.push(text.slice(start, index + 1))
+      start = -1
+    }
+  }
+  return slices
+}
+
 export function readJsonPointer(document: unknown, pointer: string): unknown {
   if (pointer === '') return document
   if (!pointer.startsWith('/')) {

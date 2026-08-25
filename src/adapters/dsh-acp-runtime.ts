@@ -14,7 +14,7 @@ import {
   type Stream,
 } from '@agentclientprotocol/sdk'
 import { AgentPackError, errorMessage } from '../core/errors.js'
-import { parseJsonObject } from '../core/json.js'
+import { extractUniqueJsonObject, parseJsonObject } from '../core/json.js'
 import type { AgentRuntime, RuntimeInvocation, RuntimeStreamEvent } from '../core/runtime-port.js'
 import type { DshCompiledArtifact } from './dsh-compiler.js'
 
@@ -158,7 +158,7 @@ export class DshAcpRuntime implements AgentRuntime {
         throw new AgentPackError('CANCELLED', 'DSH ACP prompt was cancelled', { sessionId })
       }
       const text = observer.text.join('')
-      const output = parseJsonObject(text, 'DSH model response')
+      const output = extractUniqueJsonObject(text, 'DSH model response')
       await onEvent({ type: 'runtime.completed', sessionId, stopReason: result.stopReason })
       return output
     } catch (cause) {
