@@ -130,11 +130,13 @@ AGENTPACK_EVIDENCE_ROOT="${EVIDENCE_ROOT}/qwen-real" \
   "$AGENTPACK_NODE_HOME/bin/pnpm" test:remote:qwen 2>&1 | tee "${EVIDENCE_ROOT}/test-qwen-real.log"
 
 if ! curl --fail --silent http://127.0.0.1:8333/healthcheck >/dev/null 2>&1; then
+  bash scripts/ensure-agentstack-wsl.sh 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-wsl-bootstrap.log"
   run_agentstack platform start 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-platform-start.log"
 else
   run_agentstack server login http://127.0.0.1:8333 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-server-login.log"
 fi
 run_agentstack --version >"${EVIDENCE_ROOT}/agentstack-version.txt"
+run_agentstack self version >"${EVIDENCE_ROOT}/agentstack-self-version.txt"
 
 start_pack wardrobe packs/stylemuse-wardrobe/pack.json targets/qwen-dsh.poc.json 8101 \
   QWEN_API_KEY="$QWEN_API_KEY" \
