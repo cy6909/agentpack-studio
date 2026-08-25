@@ -37,6 +37,10 @@ def secret_value(secret: object) -> str:
     return value
 
 
+def normalized_location(value: object) -> str:
+    return str(value).rstrip("/")
+
+
 async def create_context(args: argparse.Namespace) -> None:
     required = parse_pairs(args.provider, "--provider")
     sources = parse_pairs(args.source, "--source")
@@ -59,7 +63,11 @@ async def create_context(args: argparse.Namespace) -> None:
                 candidates = [
                     provider
                     for provider in candidates
-                    if expected_source in {provider.source, provider.origin}
+                    if normalized_location(expected_source)
+                    in {
+                        normalized_location(provider.source),
+                        normalized_location(provider.origin),
+                    }
                 ]
             if not candidates:
                 observed = sorted({provider.agent_card.name for provider in available})
