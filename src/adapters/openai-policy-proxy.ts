@@ -84,6 +84,7 @@ async function proxyRequest(
   }
 
   const upstreamUrl = new URL(request.url ?? '/', upstreamBaseUrl)
+  const method = request.method ?? 'GET'
   const abort = new AbortController()
   const abortOnDisconnect = (): void => abort.abort(new Error('downstream disconnected'))
   request.once('aborted', abortOnDisconnect)
@@ -97,14 +98,14 @@ async function proxyRequest(
   try {
     const rawBody = await readBody(request, 10 * 1024 * 1024)
     let body: string | undefined = rawBody.length === 0 ? undefined : rawBody
-    if (request.method === 'POST' && upstreamUrl.pathname.endsWith('/chat/completions')) {
+    if (method === 'POST' && upstreamUrl.pathname.endsWith('/chat/completions')) {
       decision = applyOpenAiToolPolicy(JSON.parse(rawBody) as unknown)
       body = JSON.stringify(decision.body)
     }
     const headers = forwardHeaders(request.headers)
     if (body !== undefined) headers.set('content-length', String(Buffer.byteLength(body)))
     const upstreamResponse = await fetch(upstreamUrl, {
-      method: request.method,
+      method,
       headers,
       ...(body === undefined ? {} : { body }),
       signal: AbortSignal.any([abort.signal, AbortSignal.timeout(options.requestTimeoutMs)]),
@@ -133,7 +134,7 @@ async function proxyRequest(
     await appendAudit(options.auditPath, {
       event: 'model.policy.applied',
       requestId,
-      method: request.method,
+      method,
       path: upstreamUrl.pathname,
       advertisedToolCount: decision?.advertisedToolCount ?? 0,
       ...(decision?.originalToolChoice === undefined ? {} : { originalToolChoice: decision.originalToolChoice }),
