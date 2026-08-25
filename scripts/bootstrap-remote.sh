@@ -34,17 +34,26 @@ if ! id cy >/dev/null 2>&1; then
   exit 77
 fi
 
+sudo -u cy -H mkdir -p "${AGENTPACK_TOOL_ROOT}/bin"
 if [[ ! -x "$AGENTPACK_UV_BIN" ]]; then
-  sudo -u cy -H sh -c 'curl -LsSf https://astral.sh/uv/install.sh | UV_PRINT_QUIET=1 sh'
+  sudo -u cy -H env UV_INSTALL_DIR="${AGENTPACK_TOOL_ROOT}/bin" \
+    sh -c 'curl -LsSf https://astral.sh/uv/install.sh | UV_PRINT_QUIET=1 sh'
 fi
 
-sudo -u cy -H "$AGENTPACK_UV_BIN" python install \
+UV_ENV=(
+  UV_TOOL_DIR="${AGENTPACK_TOOL_ROOT}/tools"
+  UV_TOOL_BIN_DIR="${AGENTPACK_TOOL_ROOT}/bin"
+  UV_PYTHON_INSTALL_DIR="${AGENTPACK_TOOL_ROOT}/python"
+  UV_CACHE_DIR="${AGENTPACK_TOOL_ROOT}/cache"
+)
+
+sudo -u cy -H env "${UV_ENV[@]}" "$AGENTPACK_UV_BIN" python install \
   --quiet \
   --python-preference=only-managed \
   --no-bin \
   3.14
 
-sudo -u cy -H "$AGENTPACK_UV_BIN" tool install \
+sudo -u cy -H env "${UV_ENV[@]}" "$AGENTPACK_UV_BIN" tool install \
   --quiet \
   --python-preference=only-managed \
   --python=3.14 \
@@ -55,4 +64,4 @@ sudo -u cy -H "$AGENTPACK_UV_BIN" tool install \
 
 printf 'node=%s\n' "$("${AGENTPACK_NODE_HOME}/bin/node" --version)"
 printf 'pnpm=%s\n' "$("${AGENTPACK_NODE_HOME}/bin/pnpm" --version)"
-printf 'agentstack=%s\n' "$(sudo -u cy -H env PATH="${AGENTPACK_WINDOWS_SYSTEM32}:/home/cy/.local/bin:/usr/local/bin:/usr/bin:/bin" "$AGENTPACK_AGENTSTACK_BIN" --version)"
+printf 'agentstack=%s\n' "$(sudo -u cy -H env PATH="${AGENTPACK_WINDOWS_SYSTEM32}:${AGENTPACK_TOOL_ROOT}/bin:/usr/local/bin:/usr/bin:/bin" "$AGENTPACK_AGENTSTACK_BIN" --version)"

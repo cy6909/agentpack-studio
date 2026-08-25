@@ -40,7 +40,7 @@ trap cleanup EXIT INT TERM
 
 run_agentstack() {
   sudo -u cy -H env \
-    PATH="${AGENTPACK_WINDOWS_SYSTEM32}:/home/cy/.local/bin:/usr/local/bin:/usr/bin:/bin" \
+    PATH="${AGENTPACK_WINDOWS_SYSTEM32}:${AGENTPACK_TOOL_ROOT}/bin:/usr/local/bin:/usr/bin:/bin" \
     "$AGENTPACK_AGENTSTACK_BIN" "$@"
 }
 
