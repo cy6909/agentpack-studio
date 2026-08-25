@@ -1,0 +1,54 @@
+{
+  "name": "@agentpack-studio/poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runtime-neutral Agent Pack PoC with DeepSeek Harness and Agent Stack adapters",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "bin": {
+    "agentpack": "dist/cli.js",
+    "agentpack-server": "dist/server-main.js",
+    "agentpack-mcp-wardrobe": "dist/mcp/wardrobe-server.js",
+    "agentpack-mcp-parenting": "dist/mcp/parenting-server.js",
+    "agentpack-mcp-travel": "dist/mcp/travel-server.js"
+  },
+  "scripts": {
+    "prebuild": "node scripts/assert-remote-host.mjs",
+    "build": "tsc -p tsconfig.json",
+    "clean": "node scripts/assert-remote-host.mjs && node scripts/clean-generated.mjs",
+    "pack:validate": "node dist/cli.js validate --all",
+    "pack:compile": "node dist/cli.js compile --all --target targets/qwen-dsh.poc.json",
+    "test": "node scripts/assert-remote-host.mjs && vitest run",
+    "test:unit": "node scripts/assert-remote-host.mjs && vitest run tests/unit",
+    "test:contract": "node scripts/assert-remote-host.mjs && vitest run tests/contract",
+    "test:integration": "node scripts/assert-remote-host.mjs && vitest run tests/integration",
+    "test:remote:qwen": "node scripts/assert-remote-host.mjs && vitest run tests/remote/qwen.real.spec.ts",
+    "test:remote:agentstack": "node scripts/assert-remote-host.mjs && vitest run tests/remote/agentstack.real.spec.ts",
+    "poc:remote": "node scripts/assert-remote-host.mjs && bash scripts/run-remote-poc.sh"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "0.3.10",
+    "@agentclientprotocol/sdk": "0.25.1",
+    "@deepseek-ai/dsh": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-acp-demo": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "express": "5.1.0",
+    "js-yaml": "4.2.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/js-yaml": "4.0.9",
+    "@types/node": "22.20.0",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agentpack.studio/target/v1alpha1",
+  "kind": "CompilationTarget",
+  "metadata": { "name": "remote-12-qwen-direct" },
+  "spec": {
+    "runtime": {
+      "adapter": "dsh-acp",
+      "provider": "qwen-local",
+      "model": "qwopus3.6-35b-a3b-v1-mtp",
+      "baseUrl": "http://10.89.2.200:12345/v1",
+      "apiKeyEnv": "QWEN_API_KEY",
+      "contextWindow": 131072,
+      "maxTokens": 8192,
+      "timeoutMs": 120000,
+      "streamIdleTimeoutMs": 120000,
+      "enableThinking": false
+    },
+    "transport": {
+      "host": "0.0.0.0",
+      "publicBaseUrl": "http://10.89.2.12"
+    },
+    "composition": {
+      "route": "direct",
+      "endpoints": {
+        "wardrobe": "http://127.0.0.1:8101",
+        "parenting": "http://127.0.0.1:8102"
+      }
+    }
+  }
+}

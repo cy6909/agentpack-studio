@@ -1,0 +1,9 @@
+{
+  "profileId": "p-aria",
+  "occasion": "client-meeting",
+  "climate": "mild",
+  "preferences": {
+    "preferredColors": ["navy", "ivory"],
+    "avoidMaterials": ["canvas"]
+  }
+}

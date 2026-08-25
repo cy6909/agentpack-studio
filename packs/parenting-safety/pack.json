@@ -1,0 +1,132 @@
+{
+  "apiVersion": "agentpack.studio/v1alpha1",
+  "kind": "AgentPack",
+  "metadata": {
+    "name": "parenting.safety-advisor",
+    "version": "0.1.0",
+    "domain": "parenting",
+    "displayName": "Parenting Safety Advisor",
+    "description": "Produces a child activity decision from versioned safety rules and citations."
+  },
+  "spec": {
+    "interface": {
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["childAge", "activityIds"],
+        "properties": {
+          "childAge": { "type": "integer", "minimum": 0, "maximum": 17 },
+          "activityIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["boat-ride", "waterfront-walk", "taxi-transfer", "garden-visit", "museum-visit"] }
+          }
+        }
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision", "summary", "constraints", "evidence"],
+        "properties": {
+          "decision": { "enum": ["safe", "conditional", "avoid"] },
+          "summary": { "type": "string", "minLength": 1 },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ruleId", "severity", "action", "citation"],
+              "properties": {
+                "ruleId": { "type": "string" },
+                "severity": { "enum": ["low", "medium", "high"] },
+                "action": { "type": "string", "minLength": 1 },
+                "citation": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["applicableRuleIds", "evaluatedRuleIds", "evaluatedRules", "sourceVersion", "toolCalls"],
+            "properties": {
+              "applicableRuleIds": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+              "evaluatedRuleIds": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+              "evaluatedRules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "severity", "activityIds", "constraint", "citation"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "severity": { "enum": ["low", "medium", "high"] },
+                    "activityIds": { "type": "array", "items": { "type": "string" } },
+                    "constraint": { "type": "string" },
+                    "citation": { "type": "string" }
+                  }
+                }
+              },
+              "sourceVersion": { "const": "parenting-rules@1" },
+              "toolCalls": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "enum": ["mcp__parenting__list_applicable_rules", "mcp__parenting__get_rule_details"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "prompt": {
+      "instructions": "Evaluate the requested activities for the child. First list every applicable rule, then fetch every listed rule detail. Do not omit a high-severity rule. If high-severity constraints exist, the decision cannot be safe without conditions. Preserve each authoritative citation exactly.",
+      "outputContract": "evidence.applicableRuleIds and evidence.evaluatedRuleIds must describe the same complete rule set. evidence.evaluatedRules must contain the fetched facts. Every high-severity evaluated rule must have a matching constraint with its exact rule id and citation. toolCalls must name both required DSH MCP tools exactly."
+    },
+    "model": {
+      "requiredCapabilities": ["chat", "tool-calling", "json-output"],
+      "maxOutputTokens": 4096
+    },
+    "tools": {
+      "mcp": [
+        {
+          "id": "parenting",
+          "server": "parenting",
+          "transport": "stdio",
+          "allow": ["list_applicable_rules", "get_rule_details"],
+          "required": true,
+          "timeoutMs": 15000
+        }
+      ]
+    },
+    "composition": { "children": [], "verify": [] },
+    "policy": {
+      "readonlyTools": true,
+      "network": "deny-by-default",
+      "failureMode": "closed",
+      "taskTimeoutMs": 120000,
+      "maxParallelTools": 1
+    },
+    "memory": { "scope": "task", "persistence": "runtime" },
+    "eval": {
+      "invariants": [
+        { "id": "applicable-evaluated", "type": "subset", "subsetPath": "/evidence/applicableRuleIds", "supersetPath": "/evidence/evaluatedRuleIds" },
+        { "id": "evaluated-applicable", "type": "subset", "subsetPath": "/evidence/evaluatedRuleIds", "supersetPath": "/evidence/applicableRuleIds" },
+        { "id": "high-severity-covered", "type": "filtered-coverage", "sourcePath": "/evidence/evaluatedRules", "sourceKeyPath": "/id", "filterPath": "/severity", "equals": "high", "targetPath": "/constraints", "targetKeyPath": "/ruleId" },
+        { "id": "required-tool-evidence", "type": "required-values", "path": "/evidence/toolCalls", "values": ["mcp__parenting__list_applicable_rules", "mcp__parenting__get_rule_details"] }
+      ],
+      "requiredTraceEvents": ["gateway.task.accepted", "runtime.started", "mcp.tool.completed", "gateway.output.validated", "gateway.task.completed"],
+      "cases": [
+        {
+          "id": "young-child-water-and-taxi",
+          "input": { "childAge": 5, "activityIds": ["boat-ride", "waterfront-walk", "taxi-transfer"] },
+          "expected": {
+            "requiredToolCalls": ["list_applicable_rules", "get_rule_details"],
+            "requiredChildAgents": []
+          }
+        }
+      ]
+    }
+  }
+}

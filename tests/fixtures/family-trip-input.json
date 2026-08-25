@@ -1,0 +1,11 @@
+{
+  "profileId": "p-aria",
+  "childAge": 5,
+  "destinationId": "hangzhou-west-lake",
+  "activityIds": ["boat-ride", "waterfront-walk", "taxi-transfer"],
+  "climate": "mild",
+  "wardrobePreferences": {
+    "preferredColors": ["navy"],
+    "avoidMaterials": ["canvas"]
+  }
+}

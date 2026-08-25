@@ -1,0 +1,198 @@
+{
+  "apiVersion": "agentpack.studio/v1alpha1",
+  "kind": "AgentPack",
+  "metadata": {
+    "name": "family-trip.planner",
+    "version": "0.1.0",
+    "domain": "family-trip",
+    "displayName": "Family Trip Planner",
+    "description": "Composes wardrobe and parenting agents with authoritative destination and activity facts."
+  },
+  "spec": {
+    "interface": {
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "childAge", "destinationId", "activityIds", "climate", "wardrobePreferences"],
+        "properties": {
+          "profileId": { "type": "string", "minLength": 1 },
+          "childAge": { "type": "integer", "minimum": 0, "maximum": 17 },
+          "destinationId": { "enum": ["hangzhou-west-lake", "sanya-bay"] },
+          "activityIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["boat-ride", "waterfront-walk", "taxi-transfer", "garden-visit", "museum-visit"] }
+          },
+          "climate": { "enum": ["cool", "mild", "warm"] },
+          "wardrobePreferences": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["preferredColors", "avoidMaterials"],
+            "properties": {
+              "preferredColors": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "avoidMaterials": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            }
+          }
+        }
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["planId", "destinationId", "summary", "itinerary", "packingItemIds", "safetyConstraints", "provenance"],
+        "properties": {
+          "planId": { "type": "string", "minLength": 1 },
+          "destinationId": { "enum": ["hangzhou-west-lake", "sanya-bay"] },
+          "summary": { "type": "string", "minLength": 1 },
+          "itinerary": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["activityId", "timing", "notes", "factIds"],
+              "properties": {
+                "activityId": { "type": "string" },
+                "timing": { "type": "string" },
+                "notes": { "type": "string" },
+                "factIds": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+              }
+            }
+          },
+          "packingItemIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+          "safetyConstraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ruleId", "action"],
+              "properties": {
+                "ruleId": { "type": "string" },
+                "action": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["travelSourceVersion", "travelFactIds", "toolCalls", "childAgents"],
+            "properties": {
+              "travelSourceVersion": { "const": "travel-facts@1" },
+              "travelFactIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+              "toolCalls": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "enum": ["mcp__travel__get_destination_facts", "mcp__travel__get_activity_facts"] }
+              },
+              "childAgents": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["childId", "pack", "version", "taskId", "route", "outputDigest"],
+                  "properties": {
+                    "childId": { "enum": ["wardrobe", "parenting"] },
+                    "pack": { "enum": ["stylemuse.wardrobe-advisor", "parenting.safety-advisor"] },
+                    "version": { "const": "0.1.0" },
+                    "taskId": { "type": "string", "minLength": 1 },
+                    "route": { "enum": ["direct", "agentstack-proxy"] },
+                    "outputDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "prompt": {
+      "instructions": "Create one family trip plan from the immutable child agent results in task.childResults plus authoritative travel MCP facts. Call both travel tools. Use only wardrobe selectedItemIds for packing and carry every parenting constraint into safetyConstraints. Copy child provenance fields, including outputDigest, exactly; never recompute or invent them.",
+      "outputContract": "packingItemIds must be a subset of the wardrobe child selectedItemIds. safetyConstraints must cover every parenting child constraint ruleId. provenance.childAgents must contain exactly wardrobe and parenting with the exact pack, version, taskId, route and outputDigest values from task.childResults. toolCalls must name both travel MCP tools exactly."
+    },
+    "model": {
+      "requiredCapabilities": ["chat", "tool-calling", "json-output"],
+      "maxOutputTokens": 6144
+    },
+    "tools": {
+      "mcp": [
+        {
+          "id": "travel",
+          "server": "travel",
+          "transport": "stdio",
+          "allow": ["get_destination_facts", "get_activity_facts"],
+          "required": true,
+          "timeoutMs": 15000
+        }
+      ]
+    },
+    "composition": {
+      "children": [
+        {
+          "id": "wardrobe",
+          "pack": "stylemuse.wardrobe-advisor",
+          "version": "0.1.0",
+          "endpointEnv": "WARDROBE_AGENT_URL",
+          "defaultEndpoint": "http://127.0.0.1:8101",
+          "inputMapping": {
+            "profileId": { "from": "/profileId" },
+            "occasion": { "value": "family-trip" },
+            "climate": { "from": "/climate" },
+            "preferences": { "from": "/wardrobePreferences" }
+          },
+          "timeoutMs": 120000
+        },
+        {
+          "id": "parenting",
+          "pack": "parenting.safety-advisor",
+          "version": "0.1.0",
+          "endpointEnv": "PARENTING_AGENT_URL",
+          "defaultEndpoint": "http://127.0.0.1:8102",
+          "inputMapping": {
+            "childAge": { "from": "/childAge" },
+            "activityIds": { "from": "/activityIds" }
+          },
+          "timeoutMs": 120000
+        }
+      ],
+      "verify": [
+        { "type": "subset-of-child", "outputPath": "/packingItemIds", "childId": "wardrobe", "childPath": "/selectedItemIds" },
+        { "type": "covers-child", "outputPath": "/safetyConstraints", "outputKeyPath": "/ruleId", "childId": "parenting", "childPath": "/constraints", "childKeyPath": "/ruleId" }
+      ]
+    },
+    "policy": {
+      "readonlyTools": true,
+      "network": "deny-by-default",
+      "failureMode": "closed",
+      "taskTimeoutMs": 300000,
+      "maxParallelTools": 1
+    },
+    "memory": { "scope": "task", "persistence": "runtime" },
+    "eval": {
+      "invariants": [
+        { "id": "required-tool-evidence", "type": "required-values", "path": "/provenance/toolCalls", "values": ["mcp__travel__get_destination_facts", "mcp__travel__get_activity_facts"] }
+      ],
+      "requiredTraceEvents": ["gateway.task.accepted", "composition.child.started", "composition.child.completed", "runtime.started", "mcp.tool.completed", "gateway.output.validated", "gateway.task.completed"],
+      "cases": [
+        {
+          "id": "west-lake-young-child",
+          "input": {
+            "profileId": "p-aria",
+            "childAge": 5,
+            "destinationId": "hangzhou-west-lake",
+            "activityIds": ["boat-ride", "waterfront-walk", "taxi-transfer"],
+            "climate": "mild",
+            "wardrobePreferences": { "preferredColors": ["navy"], "avoidMaterials": ["canvas"] }
+          },
+          "expected": {
+            "requiredToolCalls": ["get_destination_facts", "get_activity_facts"],
+            "requiredChildAgents": ["wardrobe", "parenting"]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.agentpack/
+.sessions/
+.runtime/
+coverage/
+*.log
+*.jsonl
+.env
+.env.*
+!.env.example

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+AGENTPACK_REQUIRED_ADDRESS=10.89.2.12
+AGENTPACK_NODE_VERSION=v24.19.0
+AGENTPACK_NODE_HOME=/opt/agentpack-poc/node-${AGENTPACK_NODE_VERSION}-linux-x64
+AGENTPACK_AGENTSTACK_VERSION=0.7.1
+AGENTPACK_AGENTSTACK_BIN=/home/cy/.local/bin/agentstack
+AGENTPACK_UV_BIN=/home/cy/.local/bin/uv
+AGENTPACK_WINDOWS_SYSTEM32=/mnt/c/Windows/System32
+
+if ! ip -brief address | grep -Fq "${AGENTPACK_REQUIRED_ADDRESS}/"; then
+  printf 'Refusing remote execution: host does not own %s\n' "$AGENTPACK_REQUIRED_ADDRESS" >&2
+  return 78 2>/dev/null || exit 78
+fi
+
+export AGENTPACK_REQUIRED_ADDRESS
+export AGENTPACK_NODE_VERSION
+export AGENTPACK_NODE_HOME
+export AGENTPACK_AGENTSTACK_VERSION
+export AGENTPACK_AGENTSTACK_BIN
+export AGENTPACK_UV_BIN
+export AGENTPACK_WINDOWS_SYSTEM32
+export PATH="${AGENTPACK_NODE_HOME}/bin:${PATH}"

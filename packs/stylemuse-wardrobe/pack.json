@@ -1,0 +1,151 @@
+{
+  "apiVersion": "agentpack.studio/v1alpha1",
+  "kind": "AgentPack",
+  "metadata": {
+    "name": "stylemuse.wardrobe-advisor",
+    "version": "0.1.0",
+    "domain": "wardrobe",
+    "displayName": "StyleMuse Wardrobe Advisor",
+    "description": "Builds an outfit only from the user's authoritative wardrobe inventory."
+  },
+  "spec": {
+    "interface": {
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "occasion", "climate", "preferences"],
+        "properties": {
+          "profileId": { "type": "string", "minLength": 1 },
+          "occasion": { "enum": ["commute", "client-meeting", "family-trip"] },
+          "climate": { "enum": ["cool", "mild", "warm"] },
+          "preferences": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["preferredColors", "avoidMaterials"],
+            "properties": {
+              "preferredColors": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "avoidMaterials": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            }
+          }
+        }
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recommendationId", "selectedItemIds", "coveredSlots", "outfit", "rationale", "evidence"],
+        "properties": {
+          "recommendationId": { "type": "string", "minLength": 1 },
+          "selectedItemIds": { "type": "array", "minItems": 3, "maxItems": 4, "uniqueItems": true, "items": { "type": "string" } },
+          "coveredSlots": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "enum": ["top", "bottom", "outerwear", "shoes"] }
+          },
+          "outfit": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["slot", "itemId", "reason"],
+              "properties": {
+                "slot": { "enum": ["top", "bottom", "outerwear", "shoes"] },
+                "itemId": { "type": "string" },
+                "reason": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "rationale": { "type": "string", "minLength": 1 },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["candidateIds", "itemFacts", "sourceVersion", "toolCalls"],
+            "properties": {
+              "candidateIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+              "itemFacts": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "category", "color", "warmth", "formality", "material", "available"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "category": { "enum": ["top", "bottom", "outerwear", "shoes"] },
+                    "color": { "type": "string" },
+                    "warmth": { "enum": ["light", "medium", "warm"] },
+                    "formality": { "enum": ["casual", "smart", "formal"] },
+                    "material": { "type": "string" },
+                    "available": { "type": "boolean" }
+                  }
+                }
+              },
+              "sourceVersion": { "const": "wardrobe-fixture@1" },
+              "toolCalls": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "enum": ["mcp__wardrobe__list_candidates", "mcp__wardrobe__get_item_details"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "prompt": {
+      "instructions": "Select a coherent outfit for the requested occasion and climate. First list candidates, then fetch details for all candidate ids. Select only available ids returned by both calls. Respect avoided materials when possible and explain any preference trade-off. coveredSlots and outfit slots must agree.",
+      "outputContract": "Return authoritative candidate ids and item facts under evidence. selectedItemIds must be a subset of evidence.candidateIds, unavailable items must never be selected, and top, bottom and shoes are mandatory slots. toolCalls must name both required DSH MCP tools exactly."
+    },
+    "model": {
+      "requiredCapabilities": ["chat", "tool-calling", "json-output"],
+      "maxOutputTokens": 4096
+    },
+    "tools": {
+      "mcp": [
+        {
+          "id": "wardrobe",
+          "server": "wardrobe",
+          "transport": "stdio",
+          "allow": ["list_candidates", "get_item_details"],
+          "required": true,
+          "timeoutMs": 15000
+        }
+      ]
+    },
+    "composition": { "children": [], "verify": [] },
+    "policy": {
+      "readonlyTools": true,
+      "network": "deny-by-default",
+      "failureMode": "closed",
+      "taskTimeoutMs": 120000,
+      "maxParallelTools": 1
+    },
+    "memory": { "scope": "task", "persistence": "runtime" },
+    "eval": {
+      "invariants": [
+        { "id": "selected-from-candidates", "type": "subset", "subsetPath": "/selectedItemIds", "supersetPath": "/evidence/candidateIds" },
+        { "id": "mandatory-slots", "type": "required-values", "path": "/coveredSlots", "values": ["top", "bottom", "shoes"] },
+        { "id": "required-tool-evidence", "type": "required-values", "path": "/evidence/toolCalls", "values": ["mcp__wardrobe__list_candidates", "mcp__wardrobe__get_item_details"] },
+        { "id": "exclude-unavailable", "type": "filtered-exclusion", "sourcePath": "/evidence/itemFacts", "sourceKeyPath": "/id", "filterPath": "/available", "equals": false, "targetPath": "/selectedItemIds" }
+      ],
+      "requiredTraceEvents": ["gateway.task.accepted", "runtime.started", "mcp.tool.completed", "gateway.output.validated", "gateway.task.completed"],
+      "cases": [
+        {
+          "id": "client-meeting-mild",
+          "input": {
+            "profileId": "p-aria",
+            "occasion": "client-meeting",
+            "climate": "mild",
+            "preferences": { "preferredColors": ["navy", "ivory"], "avoidMaterials": ["canvas"] }
+          },
+          "expected": {
+            "requiredToolCalls": ["list_candidates", "get_item_details"],
+            "requiredChildAgents": []
+          }
+        }
+      ]
+    }
+  }
+}
