@@ -57,7 +57,10 @@ export async function probeModel(target: CompilationTarget, evidencePath: string
         },
       },
     }],
-    tool_choice: { type: 'function', function: { name: 'echo_probe' } },
+    // The vLLM-compatible Qwen endpoint supports OpenAI's string modes but
+    // rejects the newer per-function object form. A single advertised tool
+    // plus "required" still proves an exact structured function call.
+    tool_choice: 'required',
     temperature: 0,
     max_tokens: 256,
     chat_template_kwargs: { enable_thinking: false },
