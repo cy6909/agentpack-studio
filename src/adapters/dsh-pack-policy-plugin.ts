@@ -37,12 +37,15 @@ export const inject = ['tools']
  * adapter otherwise keeps advertising tools forever:
  *
  * 1. expose the Pack's required tools until each has one successful result;
- * 2. hide those tools from that exact Agent scope so its next model request
- *    must produce the structured final answer.
+ * 2. hide each successful tool so the model can only select a missing one;
+ * 3. on any failed tool, hide the whole required set so the turn converges and
+ *    the Pack executor rejects it from authoritative MCP audit evidence;
+ * 4. once no tools remain, the next request is the structured-output phase.
  *
  * Tool-order validation remains valid because DSH restrictions hide schemas
- * while retaining the names as known capabilities. Failed calls never advance
- * the gate, so error, malformed-data and cancellation paths remain fail-closed.
+ * while retaining the names as known capabilities. Error, malformed-data and
+ * cancellation paths remain fail-closed because only successful audit records
+ * satisfy the outer Pack executor.
  */
 export function apply(ctx: PolicyContext, config: PolicyConfig): void {
   if (config.requiredTools.length === 0) return
@@ -52,7 +55,12 @@ export function apply(ctx: PolicyContext, config: PolicyConfig): void {
 
   ctx.on('tools/result', (execution, result) => {
     const agent = execution.agent
-    if (!agent || result.isError || !required.has(execution.name)) return
+    if (!agent || !required.has(execution.name)) return
+    if (result.isError) {
+      const dispose = agent.ctx.tools.restrict({ deny: [...required] })
+      restrictions.add(dispose)
+      return
+    }
     const completed = successful.get(agent) ?? new Set<string>()
     if (completed.has(execution.name)) return
     completed.add(execution.name)
