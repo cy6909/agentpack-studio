@@ -18,6 +18,15 @@ describe('Agent Stack v0.7.1 registration and proxy', () => {
       const cardUrl = `${endpoint.replace(/\/$/, '')}/.well-known/agent-card.json`
       const unauthenticated = await fetch(cardUrl)
       expect([401, 403]).toContain(unauthenticated.status)
+      const unauthenticatedTask = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 'authentication-probe', method: 'message/send',
+          params: { message: { kind: 'message', role: 'user', messageId: 'authentication-probe', parts: [{ kind: 'data', data: {} }] } },
+        }),
+      })
+      expect([401, 403]).toContain(unauthenticatedTask.status)
       const authenticated = await fetch(cardUrl, { headers: { authorization: `Bearer ${token}` } })
       expect(authenticated.ok).toBe(true)
       const card = await authenticated.json() as Record<string, unknown>

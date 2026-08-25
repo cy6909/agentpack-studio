@@ -9,6 +9,9 @@ cd "$PROJECT_ROOT"
 
 : "${QWEN_API_KEY:?QWEN_API_KEY is required for the real model at 10.89.2.200}"
 
+AGENTPACK_AGENTSTACK_USERNAME=agentpack-poc
+AGENTPACK_AGENTSTACK_PASSWORD="$(openssl rand -hex 24)"
+
 if [[ -n "$(git status --porcelain)" ]]; then
   printf 'Remote worktree must be clean before the PoC run\n' >&2
   git status --short >&2
@@ -24,6 +27,7 @@ RUNTIME_ROOT="${PROJECT_ROOT}/.runtime/${RUN_ID}"
 mkdir -p "$EVIDENCE_ROOT" "$RUNTIME_ROOT"
 
 PACK_PIDS=()
+AGENTSTACK_VALUES_FILE=""
 cleanup() {
   local pid
   for pid in "${PACK_PIDS[@]}"; do
@@ -35,12 +39,17 @@ cleanup() {
     wait "$pid" 2>/dev/null || true
   done
   rm -f -- "${RUNTIME_ROOT}/agentstack-leaf.env" "${RUNTIME_ROOT}/agentstack-all.env"
+  if [[ -n "$AGENTSTACK_VALUES_FILE" ]]; then
+    rm -f -- "$AGENTSTACK_VALUES_FILE"
+  fi
 }
 trap cleanup EXIT INT TERM
 
 run_agentstack() {
   sudo -u cy -H env \
     PATH="${AGENTPACK_WINDOWS_SYSTEM32}:${AGENTPACK_TOOL_ROOT}/bin:/usr/local/bin:/usr/bin:/bin" \
+    AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+    AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
     "$AGENTPACK_AGENTSTACK_BIN" "$@"
 }
 
@@ -129,12 +138,23 @@ wait_for_health http://127.0.0.1:8299 model-policy-proxy
 AGENTPACK_EVIDENCE_ROOT="${EVIDENCE_ROOT}/qwen-real" \
   "$AGENTPACK_NODE_HOME/bin/pnpm" test:remote:qwen 2>&1 | tee "${EVIDENCE_ROOT}/test-qwen-real.log"
 
-if ! curl --fail --silent http://127.0.0.1:8333/healthcheck >/dev/null 2>&1; then
-  bash scripts/ensure-agentstack-wsl.sh 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-wsl-bootstrap.log"
-  run_agentstack platform start 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-platform-start.log"
-else
-  run_agentstack server login http://127.0.0.1:8333 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-server-login.log"
-fi
+bash scripts/ensure-agentstack-wsl.sh 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-wsl-bootstrap.log"
+AGENTSTACK_PYTHON="$(agentstack_python)"
+AGENTSTACK_VALUES_FILE="/home/cy/.agentpack-poc/${RUN_ID}-values.json"
+AGENTPACK_AGENTSTACK_USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+AGENTPACK_AGENTSTACK_PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+  "$AGENTSTACK_PYTHON" scripts/agentstack-auth-values.py --output "$AGENTSTACK_VALUES_FILE"
+chown cy:cy "$(dirname "$AGENTSTACK_VALUES_FILE")" "$AGENTSTACK_VALUES_FILE"
+run_agentstack platform start --skip-login -f "$AGENTSTACK_VALUES_FILE" \
+  2>&1 | tee "${EVIDENCE_ROOT}/agentstack-platform-start.log"
+
+AGENTSTACK__HOME=/home/cy/.agentstack \
+AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+  "$AGENTSTACK_PYTHON" scripts/agentstack-activate.py http://127.0.0.1:8333 \
+  >"${EVIDENCE_ROOT}/agentstack-activate.log"
+chown cy:cy /home/cy/.agentstack/auth.json
+
 run_agentstack --version >"${EVIDENCE_ROOT}/agentstack-version.txt"
 run_agentstack self version >"${EVIDENCE_ROOT}/agentstack-self-version.txt"
 
@@ -148,8 +168,10 @@ start_pack parenting packs/parenting-safety/pack.json targets/qwen-dsh.poc.json 
 run_agentstack add http://10.89.2.12:8101 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-wardrobe.log"
 run_agentstack add http://10.89.2.12:8102 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-parenting.log"
 
-AGENTSTACK_PYTHON="$(agentstack_python)"
-AGENTSTACK__HOME=/home/cy/.agentstack "$AGENTSTACK_PYTHON" scripts/agentstack-context.py \
+AGENTSTACK__HOME=/home/cy/.agentstack \
+AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+  "$AGENTSTACK_PYTHON" scripts/agentstack-context.py \
   --provider 'wardrobe=StyleMuse Wardrobe Advisor' \
   --provider 'parenting=Parenting Safety Advisor' \
   --source 'wardrobe=http://10.89.2.12:8101' \
@@ -172,7 +194,10 @@ start_pack family packs/family-trip-planner/pack.json targets/qwen-dsh-agentstac
 run_agentstack add http://10.89.2.12:8103 --yes 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-add-family.log"
 run_agentstack list 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-list.log"
 
-AGENTSTACK__HOME=/home/cy/.agentstack "$AGENTSTACK_PYTHON" scripts/agentstack-context.py \
+AGENTSTACK__HOME=/home/cy/.agentstack \
+AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+  "$AGENTSTACK_PYTHON" scripts/agentstack-context.py \
   --provider 'wardrobe=StyleMuse Wardrobe Advisor' \
   --provider 'parenting=Parenting Safety Advisor' \
   --provider 'family=Family Trip Planner' \
