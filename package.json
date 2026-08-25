@@ -32,7 +32,6 @@
   "dependencies": {
     "@a2a-js/sdk": "0.3.10",
     "@agentclientprotocol/sdk": "0.25.1",
-    "@deepseek-ai/dsh": "0.1.1-rc.2",
     "@deepseek-ai/dsh-acp-demo": "0.1.1-rc.2",
     "@deepseek-ai/dsh-llm-pi-ai": "0.1.1-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
@@ -50,5 +49,15 @@
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "koffi"
+    ],
+    "ignoredBuiltDependencies": [
+      "@google/genai",
+      "protobufjs"
+    ]
   }
 }
