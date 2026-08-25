@@ -31,6 +31,7 @@ describe('DSH compiler', () => {
     expect(cordis).toContain('toolBash: false')
     expect(cordis).toContain('enable_thinking: false')
     expect(cordis).toContain('agentpack-runtime-readiness')
+    expect(cordis).toContain('agentpack-pack-policy')
     expect(cordis).toContain('mcp__wardrobe__list_candidates')
     expect(artifact.runtime.readinessPath).toContain('runtime-ready.json')
 

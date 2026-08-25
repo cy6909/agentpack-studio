@@ -136,6 +136,7 @@ function buildCordisConfig(options: {
   const { pack, target, projectRoot, sessionDirectory, readinessPath, mcpBindings } = options
   const runtime = target.spec.runtime
   const toolNames: string[] = []
+  const requiredToolNames: string[] = []
   const plugins: unknown[] = [
     {
       id: 'llm-qwen',
@@ -196,8 +197,16 @@ function buildCordisConfig(options: {
       },
     })
     toolNames.push(...binding.allow.map(name => `mcp__${binding.server}__${name}`))
+    if (binding.required) {
+      requiredToolNames.push(...binding.allow.map(name => `mcp__${binding.server}__${name}`))
+    }
   }
 
+  plugins.push({
+    id: 'agentpack-pack-policy',
+    name: pathToFileURL(join(projectRoot, 'dist', 'adapters', 'dsh-pack-policy-plugin.js')).href,
+    config: { requiredTools: requiredToolNames },
+  })
   plugins.push({
     id: 'acp-agent',
     name: '@deepseek-ai/dsh-acp-demo',
