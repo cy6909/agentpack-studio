@@ -139,7 +139,7 @@ export class PackExecutor {
       const contract = this.#artifact.composition.childContracts[child.id]
       if (!contract) throw new AgentPackError('CHILD_AGENT_FAILED', `Missing compiled child contract: ${child.id}`)
       const input = mapChildInput(options.input, child.inputMapping)
-      const childSchema = new JsonSchemaValidator(contract.inputSchema, contract.outputSchema)
+      const childSchema: JsonSchemaValidator = new JsonSchemaValidator(contract.inputSchema, contract.outputSchema)
       childSchema.validateInput(input)
       const endpoint = this.#artifact.composition.endpoints[child.id]
       if (!endpoint) throw new AgentPackError('CHILD_AGENT_FAILED', `Missing child endpoint: ${child.id}`)
