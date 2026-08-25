@@ -1,5 +1,6 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { dump } from 'js-yaml'
 import { AgentPackError } from '../core/errors.js'
 import { packDigest, packIdentity, loadAgentPack, type AgentPack } from '../core/pack-ir.js'
@@ -19,6 +20,8 @@ export interface DshCompiledArtifact {
     sessionDirectory: string
     dshVersion: string
     dshCommit: string
+    readinessPath: string
+    readinessTimeoutMs: number
     mcpBindings: Array<{
       id: string
       server: string
@@ -58,6 +61,7 @@ export class DshCompiler implements RuntimeCompiler<DshCompiledArtifact> {
     const bundleDirectory = join(outputDirectory, 'dsh', 'bundle')
     const childContracts = await resolveChildContracts(pack, projectRoot)
     const mcpBindings = resolveMcpRuntimeBindings(pack, outputDirectory)
+    const readinessPath = join(outputDirectory, 'dsh', 'runtime-ready.json')
 
     await assertRequiredEnvironment(target)
     await rm(outputDirectory, { recursive: true, force: true })
@@ -66,7 +70,7 @@ export class DshCompiler implements RuntimeCompiler<DshCompiledArtifact> {
     await mkdir(bundleDirectory, { recursive: true })
     await mkdir(sessionDirectory, { recursive: true })
 
-    const cordis = buildCordisConfig({ pack, target, projectRoot, sessionDirectory, mcpBindings })
+    const cordis = buildCordisConfig({ pack, target, projectRoot, sessionDirectory, readinessPath, mcpBindings })
     const cordisYaml = dump(cordis, { noRefs: true, lineWidth: 120, quotingType: "'", forceQuotes: false })
     await writeFile(cordisConfigPath, cordisYaml, 'utf8')
 
@@ -91,6 +95,8 @@ export class DshCompiler implements RuntimeCompiler<DshCompiledArtifact> {
         sessionDirectory,
         dshVersion: VERSION_LOCK.dsh.version,
         dshCommit: VERSION_LOCK.dsh.gitCommit,
+        readinessPath,
+        readinessTimeoutMs: 30_000,
         mcpBindings,
       },
       composition: {
@@ -124,9 +130,10 @@ function buildCordisConfig(options: {
   target: CompilationTarget
   projectRoot: string
   sessionDirectory: string
+  readinessPath: string
   mcpBindings: DshCompiledArtifact['runtime']['mcpBindings']
 }): unknown[] {
-  const { pack, target, projectRoot, sessionDirectory, mcpBindings } = options
+  const { pack, target, projectRoot, sessionDirectory, readinessPath, mcpBindings } = options
   const runtime = target.spec.runtime
   const toolNames: string[] = []
   const plugins: unknown[] = [
@@ -209,6 +216,14 @@ function buildCordisConfig(options: {
       // mandatory rest marker, even when all currently known tools are named.
       toolOrder: [...toolNames, '<unlisted-tools>'],
       persona: buildPersona(pack, toolNames),
+    },
+  })
+  plugins.push({
+    id: 'agentpack-runtime-readiness',
+    name: pathToFileURL(join(projectRoot, 'dist', 'adapters', 'dsh-readiness-plugin.js')).href,
+    config: {
+      path: readinessPath,
+      requiredTools: [...toolNames],
     },
   })
   return plugins

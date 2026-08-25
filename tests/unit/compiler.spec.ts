@@ -30,6 +30,9 @@ describe('DSH compiler', () => {
     expect(cordis).not.toContain('travel-server.js')
     expect(cordis).toContain('toolBash: false')
     expect(cordis).toContain('enable_thinking: false')
+    expect(cordis).toContain('agentpack-runtime-readiness')
+    expect(cordis).toContain('mcp__wardrobe__list_candidates')
+    expect(artifact.runtime.readinessPath).toContain('runtime-ready.json')
 
     const bundle = JSON.parse(await readFile(join(outputDirectory, 'dsh/bundle/package.json'), 'utf8')) as Record<string, unknown>
     const profile = JSON.parse(await readFile(join(outputDirectory, 'dsh/profile/package.json'), 'utf8')) as Record<string, unknown>

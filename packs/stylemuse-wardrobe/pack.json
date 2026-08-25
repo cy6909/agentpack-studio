@@ -119,7 +119,7 @@
       "readonlyTools": true,
       "network": "deny-by-default",
       "failureMode": "closed",
-      "taskTimeoutMs": 120000,
+      "taskTimeoutMs": 300000,
       "maxParallelTools": 1
     },
     "memory": { "scope": "task", "persistence": "runtime" },

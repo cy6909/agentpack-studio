@@ -29,6 +29,13 @@ const runtime = new DshAcpRuntime({
     line,
   }) },
 })
+await runtime.start()
+await trace.write({
+  event: 'runtime.ready',
+  traceId: 'runtime',
+  pack: artifact.packIdentity,
+  readinessPath: artifact.runtime.readinessPath,
+})
 const executor = new PackExecutor({ artifact, runtime, trace })
 const publicUrl = args.get('public-url') ?? `${artifact.target.spec.transport.publicBaseUrl.replace(/\/$/, '')}:${port}`
 const server = await startA2aServer({
