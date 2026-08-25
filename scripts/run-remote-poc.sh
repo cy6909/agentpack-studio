@@ -102,6 +102,18 @@ git status --porcelain=v1 >"${EVIDENCE_ROOT}/source-status-before.txt"
 
 "$AGENTPACK_NODE_HOME/bin/pnpm" install --frozen-lockfile 2>&1 | tee "${EVIDENCE_ROOT}/pnpm-install.log"
 "$AGENTPACK_NODE_HOME/bin/pnpm" build 2>&1 | tee "${EVIDENCE_ROOT}/build.log"
+
+assert_port_free 8299
+"$AGENTPACK_NODE_HOME/bin/node" dist/model-policy-proxy-main.js \
+  --host 127.0.0.1 \
+  --port 8299 \
+  --upstream http://10.89.2.200:12345 \
+  --audit "${EVIDENCE_ROOT}/model-policy-proxy.jsonl" \
+  >"${EVIDENCE_ROOT}/model-policy-proxy.stdout.log" \
+  2>"${EVIDENCE_ROOT}/model-policy-proxy.stderr.log" &
+PACK_PIDS+=("$!")
+wait_for_health http://127.0.0.1:8299 model-policy-proxy
+
 "$AGENTPACK_NODE_HOME/bin/node" dist/cli.js versions >"${EVIDENCE_ROOT}/version-lock.json"
 "$AGENTPACK_NODE_HOME/bin/node" dist/cli.js validate --all 2>&1 | tee "${EVIDENCE_ROOT}/pack-validation.jsonl"
 "$AGENTPACK_NODE_HOME/bin/node" dist/cli.js compile --all --target targets/qwen-dsh.poc.json \

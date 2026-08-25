@@ -48,20 +48,23 @@ export function apply(ctx: PolicyContext, config: PolicyConfig): void {
   if (config.requiredTools.length === 0) return
   const required = new Set(config.requiredTools)
   const successful = new WeakMap<AgentHandle, Set<string>>()
-  const gated = new WeakSet<AgentHandle>()
   const restrictions = new Set<() => void>()
 
   ctx.on('tools/result', (execution, result) => {
     const agent = execution.agent
-    if (!agent || gated.has(agent) || result.isError || !required.has(execution.name)) return
+    if (!agent || result.isError || !required.has(execution.name)) return
     const completed = successful.get(agent) ?? new Set<string>()
+    if (completed.has(execution.name)) return
     completed.add(execution.name)
     successful.set(agent, completed)
-    if (![...required].every(tool => completed.has(tool))) return
 
-    const dispose = agent.ctx.tools.restrict({ deny: [...required] })
+    // Hide each successfully completed tool immediately. With a transport
+    // policy of "required while tools are advertised", the model can only
+    // choose from the still-missing requirements on the next step. Once the
+    // last requirement succeeds, no tools remain and the following request is
+    // the structured-output phase.
+    const dispose = agent.ctx.tools.restrict({ deny: [execution.name] })
     restrictions.add(dispose)
-    gated.add(agent)
   })
 
   ctx.effect(() => () => {

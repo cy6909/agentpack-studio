@@ -11,6 +11,7 @@
   "bin": {
     "agentpack": "dist/cli.js",
     "agentpack-server": "dist/server-main.js",
+    "agentpack-model-policy-proxy": "dist/model-policy-proxy-main.js",
     "agentpack-mcp-wardrobe": "dist/mcp/wardrobe-server.js",
     "agentpack-mcp-parenting": "dist/mcp/parenting-server.js",
     "agentpack-mcp-travel": "dist/mcp/travel-server.js"

@@ -7,7 +7,7 @@
       "adapter": "dsh-acp",
       "provider": "qwen-local",
       "model": "qwopus3.6-35b-a3b-v1-mtp",
-      "baseUrl": "http://10.89.2.200:12345/v1",
+      "baseUrl": "http://127.0.0.1:8299/v1",
       "apiKeyEnv": "QWEN_API_KEY",
       "contextWindow": 131072,
       "maxTokens": 8192,
