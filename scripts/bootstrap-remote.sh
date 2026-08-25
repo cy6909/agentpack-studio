@@ -34,6 +34,7 @@ if ! id cy >/dev/null 2>&1; then
   exit 77
 fi
 
+pushd /home/cy >/dev/null
 sudo -u cy -H mkdir -p "${AGENTPACK_TOOL_ROOT}/bin"
 if [[ ! -x "$AGENTPACK_UV_BIN" ]]; then
   sudo -u cy -H env UV_INSTALL_DIR="${AGENTPACK_TOOL_ROOT}/bin" \
@@ -61,6 +62,7 @@ sudo -u cy -H env "${UV_ENV[@]}" "$AGENTPACK_UV_BIN" tool install \
   --with "agentstack-sdk==${AGENTPACK_AGENTSTACK_VERSION}" \
   "agentstack-cli==${AGENTPACK_AGENTSTACK_VERSION}" \
   --force
+popd >/dev/null
 
 printf 'node=%s\n' "$("${AGENTPACK_NODE_HOME}/bin/node" --version)"
 printf 'pnpm=%s\n' "$("${AGENTPACK_NODE_HOME}/bin/pnpm" --version)"
