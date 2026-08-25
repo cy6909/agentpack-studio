@@ -89,6 +89,7 @@ describe('generic A2A gateway', () => {
       if (isRecord(result) && result.kind === 'task' && typeof result.id === 'string') task.resolve(result.id)
     })
     const taskId = await task.promise
+    await runtime.hangStarted.promise
     await new A2aClient().cancel(endpoint, taskId)
     await stream
     const results = observed.map(event => event.result).filter(isRecord)
@@ -130,6 +131,7 @@ function wardrobeInput(profileId: string): JsonObject {
 class FakeRuntime implements AgentRuntime {
   readonly invocations: RuntimeInvocation[] = []
   readonly cancelledSessions: string[] = []
+  readonly hangStarted = Promise.withResolvers<void>()
 
   start(): Promise<void> { return Promise.resolve() }
 
@@ -146,10 +148,15 @@ class FakeRuntime implements AgentRuntime {
     if (profileId === 'invalid-output') return { invalid: true }
     if (profileId === 'hang') {
       await new Promise<void>((_resolve, reject) => {
+        if (signal.aborted) {
+          reject(new AgentPackError('CANCELLED', 'fake runtime cancelled before its wait'))
+          return
+        }
         signal.addEventListener('abort', () => {
           this.cancelledSessions.push(sessionId)
           reject(new AgentPackError('CANCELLED', 'fake runtime cancelled'))
         }, { once: true })
+        this.hangStarted.resolve()
       })
     }
     await new Promise(resolveWait => setTimeout(resolveWait, profileId === 'alpha' ? 20 : 5))
