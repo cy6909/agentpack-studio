@@ -18,42 +18,41 @@ async def delete_exact_provider(name: str, source: str) -> None:
     configuration = Configuration()
     async with configuration.use_platform_client() as client:
         providers = await Provider.list(client=client)
-
-    location_matches = [
-        candidate
-        for candidate in providers
-        if normalized_location(source)
-        in {normalized_location(candidate.source), normalized_location(candidate.origin)}
-    ]
-    unexpected_names = sorted(
-        {candidate.agent_card.name for candidate in location_matches if candidate.agent_card.name != name}
-    )
-    if unexpected_names:
-        raise RuntimeError(
-            "Refusing to delete an Agent Stack provider at the requested source with a different name: "
-            f"source={source!r}, expected_name={name!r}, actual_names={unexpected_names!r}"
+        location_matches = [
+            candidate
+            for candidate in providers
+            if normalized_location(source)
+            in {normalized_location(candidate.source), normalized_location(candidate.origin)}
+        ]
+        unexpected_names = sorted(
+            {candidate.agent_card.name for candidate in location_matches if candidate.agent_card.name != name}
         )
-
-    matches = [candidate for candidate in location_matches if candidate.agent_card.name == name]
-    if len(matches) > 1:
-        raise RuntimeError(
-            f"Refusing to delete multiple Agent Stack providers: name={name!r}, source={source!r}"
-        )
-    if not matches:
-        print(
-            json.dumps(
-                {
-                    "event": "agentpack.agentstack.provider.absent",
-                    "name": name,
-                    "source": source,
-                },
-                sort_keys=True,
+        if unexpected_names:
+            raise RuntimeError(
+                "Refusing to delete an Agent Stack provider at the requested source with a different name: "
+                f"source={source!r}, expected_name={name!r}, actual_names={unexpected_names!r}"
             )
-        )
-        return
 
-    provider = matches[0]
-    await provider.delete()
+        matches = [candidate for candidate in location_matches if candidate.agent_card.name == name]
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"Refusing to delete multiple Agent Stack providers: name={name!r}, source={source!r}"
+            )
+        if not matches:
+            print(
+                json.dumps(
+                    {
+                        "event": "agentpack.agentstack.provider.absent",
+                        "name": name,
+                        "source": source,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return
+
+        provider = matches[0]
+        await provider.delete(client=client)
     print(
         json.dumps(
             {
