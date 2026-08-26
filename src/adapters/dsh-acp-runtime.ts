@@ -14,8 +14,9 @@ import {
   type Stream,
 } from '@agentclientprotocol/sdk'
 import { AgentPackError, errorMessage } from '../core/errors.js'
-import { extractUniqueJsonObject, parseJsonObject } from '../core/json.js'
-import type { AgentRuntime, RuntimeInvocation, RuntimeStreamEvent } from '../core/runtime-port.js'
+import { extractUniqueJsonObject } from '../core/json.js'
+import type { JsonObject } from '../core/json.js'
+import type { AgentRuntime, RuntimeInvocation, RuntimeOutputGuard, RuntimeStreamEvent } from '../core/runtime-port.js'
 import type { DshCompiledArtifact } from './dsh-compiler.js'
 
 interface SessionObserver {
@@ -129,7 +130,8 @@ export class DshAcpRuntime implements AgentRuntime {
     invocation: RuntimeInvocation,
     signal: AbortSignal,
     onEvent: (event: RuntimeStreamEvent) => void | Promise<void>,
-  ): Promise<ReturnType<typeof parseJsonObject>> {
+    guardOutput: RuntimeOutputGuard,
+  ): Promise<JsonObject> {
     await this.start()
     const connection = this.#connection
     if (!connection) throw new AgentPackError('RUNTIME_FAILED', 'DSH ACP connection is unavailable')
@@ -162,18 +164,24 @@ export class DshAcpRuntime implements AgentRuntime {
           throw new AgentPackError('CANCELLED', 'DSH ACP prompt was cancelled', { sessionId })
         }
         const text = observer.text.join('')
+        let rejectedOutput: JsonObject | undefined
         try {
           const output = extractUniqueJsonObject(text, 'DSH model response')
+          rejectedOutput = output
+          guardOutput(output)
           await onEvent({ type: 'runtime.completed', sessionId, stopReason: result.stopReason })
           return output
         } catch (cause: unknown) {
-          const recoverable = cause instanceof AgentPackError && cause.code === 'OUTPUT_INVALID'
+          const recoverable = cause instanceof AgentPackError
+            && (cause.code === 'OUTPUT_INVALID' || cause.code === 'POLICY_VIOLATION')
           if (!recoverable || attempt >= maximumAttempts) throw cause
           await onEvent({ type: 'runtime.recovering', sessionId, attempt })
           prompt = JSON.stringify({
             agentpackRecovery: {
-              reason: 'The previous turn did not produce exactly one valid output object.',
-              instruction: 'Continue the same task. Call every still-advertised required tool, then return exactly one JSON object and no other text.',
+              code: cause.code,
+              reason: errorMessage(cause),
+              instruction: 'Correct the previous output for the same task. Use only the tool and child results already present in this session, call every still-advertised required tool, and return exactly one JSON object with no other text. Never weaken or ignore the output contract.',
+              ...(rejectedOutput === undefined ? {} : { rejectedOutput }),
               outputSchema: this.#options.artifact.pack.spec.interface.outputSchema,
             },
           })

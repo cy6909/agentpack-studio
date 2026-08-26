@@ -56,6 +56,12 @@ export class PackExecutor {
     const signal = AbortSignal.any([options.signal, timeoutSignal])
     try {
       const childResults = await this.#invokeChildren(options, signal)
+      const guardOutput = (output: JsonObject): void => {
+        this.#schema.validateOutput(output)
+        enforcePackInvariants(output, pack.spec.eval.invariants)
+        enforceCompositionVerifications(output, childResults, pack.spec.composition.verify)
+        enforceChildProvenance(output, childResults)
+      }
       const output = await this.#runtime.invoke(
         { input: options.input, traceId: options.traceId, childResults },
         signal,
@@ -78,6 +84,7 @@ export class PackExecutor {
             ...(event.attempt === undefined ? {} : { attempt: event.attempt }),
           })
         },
+        guardOutput,
       )
       if (signal.aborted) throw new AgentPackError('CANCELLED', 'Task cancelled before output validation')
       const verifiedMcp = await verifyRequiredMcpCalls(this.#artifact, options.traceId)
@@ -97,10 +104,9 @@ export class PackExecutor {
         pack: packIdentity(pack),
         calls: verifiedMcp,
       })
-      this.#schema.validateOutput(output)
-      enforcePackInvariants(output, pack.spec.eval.invariants)
-      enforceCompositionVerifications(output, childResults, pack.spec.composition.verify)
-      enforceChildProvenance(output, childResults)
+      // Adapters may use the guard for a bounded repair turn, but the generic
+      // executor remains the final enforcement boundary.
+      guardOutput(output)
       await this.#trace.write({
         event: 'gateway.output.validated',
         traceId: options.traceId,

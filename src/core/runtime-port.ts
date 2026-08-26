@@ -24,12 +24,15 @@ export interface ChildInvocationResult {
   output: JsonObject
 }
 
+export type RuntimeOutputGuard = (output: JsonObject) => void
+
 export interface AgentRuntime {
   start(): Promise<void>
   invoke(
     invocation: RuntimeInvocation,
     signal: AbortSignal,
     onEvent: (event: RuntimeStreamEvent) => void | Promise<void>,
+    guardOutput: RuntimeOutputGuard,
   ): Promise<JsonObject>
   cancel(sessionId: string): Promise<void>
   close(): Promise<void>

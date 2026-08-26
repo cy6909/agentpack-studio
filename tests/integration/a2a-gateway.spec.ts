@@ -10,7 +10,7 @@ import { DshCompiler, type DshCompiledArtifact } from '../../src/adapters/dsh-co
 import { AgentPackError } from '../../src/core/errors.js'
 import type { JsonObject } from '../../src/core/json.js'
 import { PackExecutor } from '../../src/core/pack-executor.js'
-import type { AgentRuntime, RuntimeInvocation, RuntimeStreamEvent } from '../../src/core/runtime-port.js'
+import type { AgentRuntime, RuntimeInvocation, RuntimeOutputGuard, RuntimeStreamEvent } from '../../src/core/runtime-port.js'
 import { TraceSink } from '../../src/core/trace.js'
 
 let directory: string
@@ -139,6 +139,7 @@ class FakeRuntime implements AgentRuntime {
     invocation: RuntimeInvocation,
     signal: AbortSignal,
     onEvent: (event: RuntimeStreamEvent) => void | Promise<void>,
+    guardOutput: RuntimeOutputGuard,
   ): Promise<JsonObject> {
     this.invocations.push(invocation)
     const sessionId = randomUUID()
@@ -162,6 +163,7 @@ class FakeRuntime implements AgentRuntime {
     await new Promise(resolveWait => setTimeout(resolveWait, profileId === 'alpha' ? 20 : 5))
     const output = validOutput(profileId)
     await onEvent({ type: 'runtime.message', sessionId, text: JSON.stringify(output) })
+    guardOutput(output)
     await onEvent({ type: 'runtime.completed', sessionId, stopReason: 'end_turn' })
     return output
   }
