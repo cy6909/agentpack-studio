@@ -94,6 +94,17 @@ wait_for_agentstack_provider() {
     --wait-online-seconds 120 2>&1 | tee "$evidence_path"
 }
 
+delete_exact_agentstack_provider() {
+  local name="$1"
+  local source="$2"
+  local evidence_path="$3"
+  AGENTSTACK__HOME=/home/cy/.agentstack \
+  AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+  AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+    "$AGENTSTACK_PYTHON" scripts/agentstack-provider.py --name "$name" --source "$source" \
+    --delete-exact 2>&1 | tee "$evidence_path"
+}
+
 assert_port_free() {
   local port="$1"
   if ss -H -ltn | awk '{print $4}' | grep -Eq ":${port}$"; then
@@ -203,6 +214,16 @@ chown cy:cy /home/cy/.agentstack/auth.json
 
 run_agentstack --version >"${EVIDENCE_ROOT}/agentstack-version.txt"
 run_agentstack self version >"${EVIDENCE_ROOT}/agentstack-self-version.txt"
+
+# Agent Stack v0.7.1's unmanaged-provider health job acts as the built-in
+# admin@beeai.dev subject. Remove only exact PoC registrations so every unified
+# batch proves a fresh authenticated `agentstack add` under that same subject.
+delete_exact_agentstack_provider 'StyleMuse Wardrobe Advisor' http://10.89.2.12:8101 \
+  "${EVIDENCE_ROOT}/agentstack-delete-wardrobe.log"
+delete_exact_agentstack_provider 'Parenting Safety Advisor' http://10.89.2.12:8102 \
+  "${EVIDENCE_ROOT}/agentstack-delete-parenting.log"
+delete_exact_agentstack_provider 'Family Trip Planner' http://10.89.2.12:8103 \
+  "${EVIDENCE_ROOT}/agentstack-delete-family.log"
 
 start_pack wardrobe packs/stylemuse-wardrobe/pack.json targets/qwen-dsh.poc.json 8101 \
   QWEN_API_KEY="$QWEN_API_KEY" \

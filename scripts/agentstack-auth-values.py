@@ -30,7 +30,11 @@ def main() -> None:
                         "password": required_environment("AGENTPACK_AGENTSTACK_PASSWORD"),
                         "firstName": "AgentPack",
                         "lastName": "PoC",
-                        "email": "agentpack-poc@agentpack.studio",
+                        # Agent Stack v0.7.1's unmanaged-provider health job always
+                        # patches providers as the built-in admin@beeai.dev user.
+                        # Mapping the ephemeral PoC login to that existing subject
+                        # keeps authenticated registrations visible to the job.
+                        "email": "admin@beeai.dev",
                         "enabled": True,
                         "roles": ["agentstack-admin"],
                     }
