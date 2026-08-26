@@ -76,6 +76,14 @@ async def create_context(args: argparse.Namespace) -> None:
                 )
             selected[alias] = max(candidates, key=lambda provider: provider.created_at)
 
+        unavailable = {
+            alias: str(provider.state)
+            for alias, provider in selected.items()
+            if str(provider.state) != "online"
+        }
+        if unavailable:
+            raise RuntimeError(f"registered providers are not online: {unavailable}")
+
         context = await Context.create(
             metadata={"agentpack_scope": args.scope, "purpose": "AgentPack Studio technical piercing"},
             client=client,

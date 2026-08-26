@@ -51,7 +51,10 @@ export class A2aClient {
       for await (const envelope of readSseJson(response.body)) {
         if (!isJsonObject(envelope)) continue
         if (isJsonObject(envelope.error)) {
-          throw new AgentPackError('CHILD_AGENT_FAILED', 'Child A2A returned JSON-RPC error', envelope.error)
+          const message = typeof envelope.error.message === 'string'
+            ? `: ${envelope.error.message}`
+            : ''
+          throw new AgentPackError('CHILD_AGENT_FAILED', `Child A2A returned JSON-RPC error${message}`, envelope.error)
         }
         const result = envelope.result
         if (!isJsonObject(result)) continue

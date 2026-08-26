@@ -73,6 +73,17 @@ register_agentstack_provider() {
     2>&1 | tee -a "$evidence_path"
 }
 
+wait_for_agentstack_provider() {
+  local name="$1"
+  local source="$2"
+  local evidence_path="$3"
+  AGENTSTACK__HOME=/home/cy/.agentstack \
+  AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
+  AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
+    "$AGENTSTACK_PYTHON" scripts/agentstack-provider.py --name "$name" --source "$source" \
+    --wait-online-seconds 120 2>&1 | tee "$evidence_path"
+}
+
 assert_port_free() {
   local port="$1"
   if ss -H -ltn | awk '{print $4}' | grep -Eq ":${port}$"; then
@@ -162,6 +173,17 @@ chown cy:cy "$(dirname "$AGENTSTACK_VALUES_FILE")" "$AGENTSTACK_VALUES_FILE"
 run_agentstack platform start --skip-login -f "$AGENTSTACK_VALUES_FILE" \
   2>&1 | tee "${EVIDENCE_ROOT}/agentstack-platform-start.log"
 
+# Agent Stack v0.7.1 may restart PostgreSQL during Helm convergence without
+# restarting its long-lived server pod. Roll the official deployment so its DB
+# pool and periodic unmanaged-provider probes start from the current platform.
+(
+  cd /home/cy
+  run_agentstack platform exec -- kubectl --kubeconfig=/kubeconfig \
+    rollout restart deployment/agentstack-server
+  run_agentstack platform exec -- kubectl --kubeconfig=/kubeconfig \
+    rollout status deployment/agentstack-server --timeout=180s
+) 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-server-rollout.log"
+
 AGENTSTACK__HOME=/home/cy/.agentstack \
 AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
 AGENTSTACK__PASSWORD="$AGENTPACK_AGENTSTACK_PASSWORD" \
@@ -183,6 +205,10 @@ register_agentstack_provider 'StyleMuse Wardrobe Advisor' http://10.89.2.12:8101
   "${EVIDENCE_ROOT}/agentstack-add-wardrobe.log"
 register_agentstack_provider 'Parenting Safety Advisor' http://10.89.2.12:8102 \
   "${EVIDENCE_ROOT}/agentstack-add-parenting.log"
+wait_for_agentstack_provider 'StyleMuse Wardrobe Advisor' http://10.89.2.12:8101 \
+  "${EVIDENCE_ROOT}/agentstack-ready-wardrobe.log"
+wait_for_agentstack_provider 'Parenting Safety Advisor' http://10.89.2.12:8102 \
+  "${EVIDENCE_ROOT}/agentstack-ready-parenting.log"
 
 AGENTSTACK__HOME=/home/cy/.agentstack \
 AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
@@ -209,6 +235,8 @@ start_pack family packs/family-trip-planner/pack.json targets/qwen-dsh-agentstac
 
 register_agentstack_provider 'Family Trip Planner' http://10.89.2.12:8103 \
   "${EVIDENCE_ROOT}/agentstack-add-family.log"
+wait_for_agentstack_provider 'Family Trip Planner' http://10.89.2.12:8103 \
+  "${EVIDENCE_ROOT}/agentstack-ready-family.log"
 run_agentstack list 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-list.log"
 
 AGENTSTACK__HOME=/home/cy/.agentstack \
