@@ -126,6 +126,25 @@ wait_for_health() {
   done
 }
 
+wait_for_agentstack_api() {
+  local deadline=$((SECONDS + 180))
+  local status
+  while true; do
+    status="$(
+      curl --silent --output /dev/null --write-out '%{http_code}' --max-time 5 \
+        http://127.0.0.1:8333/api/v1/providers || true
+    )"
+    if [[ "$status" == 401 || "$status" == 403 ]]; then
+      return
+    fi
+    if (( SECONDS >= deadline )); then
+      printf 'Timed out waiting for authenticated Agent Stack API; last status=%s\n' "$status" >&2
+      exit 70
+    fi
+    sleep 1
+  done
+}
+
 start_pack() {
   local name="$1"
   local pack_path="$2"
@@ -204,6 +223,7 @@ run_agentstack platform start --skip-login -f "$AGENTSTACK_VALUES_FILE" \
   run_agentstack platform exec -- kubectl --kubeconfig=/kubeconfig \
     rollout status deployment/agentstack-server --timeout=180s
 ) 2>&1 | tee "${EVIDENCE_ROOT}/agentstack-server-rollout.log"
+wait_for_agentstack_api
 
 AGENTSTACK__HOME=/home/cy/.agentstack \
 AGENTSTACK__USERNAME="$AGENTPACK_AGENTSTACK_USERNAME" \
