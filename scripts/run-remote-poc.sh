@@ -18,8 +18,18 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 65
 fi
 
+SCRIPT_HASH_BEFORE_PULL="$(git hash-object "${SCRIPT_DIRECTORY}/run-remote-poc.sh")"
 git fetch origin main
 git merge --ff-only origin/main
+SCRIPT_HASH_AFTER_PULL="$(git hash-object "${SCRIPT_DIRECTORY}/run-remote-poc.sh")"
+if [[ "$SCRIPT_HASH_BEFORE_PULL" != "$SCRIPT_HASH_AFTER_PULL" ]]; then
+  if [[ "${AGENTPACK_REMOTE_POC_REEXECUTED:-0}" == 1 ]]; then
+    printf 'Remote PoC runner changed again after re-exec; refusing a mixed-source evidence batch\n' >&2
+    exit 65
+  fi
+  printf 'Remote PoC runner updated; re-executing the pulled version before evidence capture\n'
+  exec env AGENTPACK_REMOTE_POC_REEXECUTED=1 bash "${SCRIPT_DIRECTORY}/run-remote-poc.sh"
+fi
 
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 EVIDENCE_ROOT="${PROJECT_ROOT}/.agentpack/evidence/${RUN_ID}"
